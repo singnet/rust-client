@@ -253,7 +253,7 @@ pub async fn transfer_deploy(args: &TransferArgs) -> Result<String, Box<dyn std:
     validate_address(&from_address)?;
     validate_address(&args.to_address)?;
 
-    let amount_dust = args.amount * 100_000_000;
+    let amount_dust = args.amount; // earlier: `args.amount * 100_000_000`, but now we'll work in dust directly
 
     println!("📋 Transfer Details:");
     println!("   From: {}", from_address);
@@ -380,7 +380,9 @@ pub async fn check_deploy_status(
     ));
 }
 
-pub async fn transfer_command(args: &TransferArgs) -> Result<(), Box<dyn std::error::Error>> {
+pub async fn transfer_command(
+    args: &TransferArgs,
+) -> Result<(DeployCompressedInfo, String), Box<dyn std::error::Error>> {
     println!("STEP 1: Transfer deploy");
     let deploy_start_time = Instant::now();
     let deploy_id = transfer_deploy(args).await?;
@@ -410,7 +412,8 @@ pub async fn transfer_command(args: &TransferArgs) -> Result<(), Box<dyn std::er
 
     println!("STEP 2: Wait for transfer deploy to be finalized");
     let wait_args: WaitArgs = WaitArgs::from_transfer_args(args);
-    let deploy_info: DeployCompressedInfo = check_deploy_status(deploy_id, &wait_args).await?;
+    let deploy_info: DeployCompressedInfo =
+        check_deploy_status(deploy_id.clone(), &wait_args).await?;
 
     if *deploy_info.status() == CompressedDeployStatus::Finalized {
         let total_duration = deploy_start_time.elapsed();
@@ -424,7 +427,7 @@ pub async fn transfer_command(args: &TransferArgs) -> Result<(), Box<dyn std::er
         );
     }
 
-    Ok(())
+    Ok((deploy_info, deploy_id))
 }
 
 pub async fn bond_validator_command(
