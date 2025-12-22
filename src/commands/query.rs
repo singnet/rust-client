@@ -330,7 +330,9 @@ pub async fn wallet_balance_command(
             let duration = start_time.elapsed();
             println!("✅ Wallet balance retrieved successfully!");
             println!("⏱️  Time taken: {:.2?}", duration);
-            println!("💰 Balance for {}: {} {}", args.address, balance, token);
+            
+            let balance_display = balance.parse::<f64>().map(|b| b / 100_000_000.0).unwrap_or(0.0);
+            println!("💰 Balance for {}: {} {}", args.address, balance_display, token);
             println!("📊 {}", block_info);
 
             return Ok((balance, block_info));
