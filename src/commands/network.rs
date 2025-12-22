@@ -259,8 +259,8 @@ pub async fn transfer_deploy(args: &TransferArgs) -> Result<String, Box<dyn std:
     println!("   From: {}", from_address);
     println!("   To: {}", args.to_address);
     println!(
-        "   Amount: {} {} ({} dust)",
-        args.amount, token, amount_dust
+        "   Amount: {} {}",
+        args.amount as f64 / 100_000_000.0, token
     );
     println!(
         "   Phlo limit: {}",
