@@ -31,8 +31,8 @@ impl Dispatcher {
             Commands::GenerateKeyPair(args) => {
                 generate_key_pair_command(args).map_err(NodeCliError::from)
             }
-            Commands::GenerateAddress(args) => {
-                generate_address_command(args).map_err(NodeCliError::from)
+            Commands::GenerateVaultAddress(args) => {
+                generate_vault_address_command(args).map_err(NodeCliError::from)
             }
             Commands::Status(args) => status_command(args).await.map_err(NodeCliError::from),
             Commands::Blocks(args) => blocks_command(args).await.map_err(NodeCliError::from),
@@ -68,6 +68,7 @@ impl Dispatcher {
                 .await
                 .map(|_| ())
                 .map_err(NodeCliError::from),
+            Commands::LoadTest(args) => load_test_command(args).await.map_err(NodeCliError::from),
             Commands::GetDeploy(args) => get_deploy_command(args)
                 .await
                 .map(|_| ())
@@ -86,9 +87,13 @@ impl Dispatcher {
                 .await
                 .map_err(NodeCliError::from),
             Commands::GetNodeId(args) => get_node_id_command(args).map_err(NodeCliError::from),
-            Commands::WatchBlocks(args) => {
-                watch_blocks_command(args).await.map_err(NodeCliError::from)
-            }
+            Commands::WatchBlocks(args) => watch_blocks_command(args)
+                .await
+                .map_err(NodeCliError::from),
+            Commands::Dag(args) => run_dag(args).await,
+            Commands::BlockTransfers(args) => block_transfers_command(args)
+                .await
+                .map_err(NodeCliError::from),
         };
 
         // Handle errors with better formatting
@@ -128,6 +133,45 @@ impl Dispatcher {
             NodeCliError::General(msg) => {
                 print_error(msg);
             }
+        }
+    }
+
+    /// Get the command name for logging purposes
+    pub fn get_command_name(cli: &Cli) -> &'static str {
+        match &cli.command {
+            Commands::Deploy(_) => "deploy",
+            Commands::Propose(_) => "propose",
+            Commands::FullDeploy(_) => "full-deploy",
+            Commands::DeployAndWait(_) => "deploy-and-wait",
+            Commands::IsFinalized(_) => "is-finalized",
+            Commands::ExploratoryDeploy(_) => "exploratory-deploy",
+            Commands::GeneratePublicKey(_) => "generate-public-key",
+            Commands::GenerateKeyPair(_) => "generate-key-pair",
+            Commands::GenerateVaultAddress(_) => "generate-vault-address",
+            Commands::Status(_) => "status",
+            Commands::Blocks(_) => "blocks",
+            Commands::Bonds(_) => "bonds",
+            Commands::ActiveValidators(_) => "active-validators",
+            Commands::WalletBalance(_) => "wallet-balance",
+            Commands::BondStatus(_) => "bond-status",
+            Commands::Metrics(_) => "metrics",
+            Commands::BondValidator(_) => "bond-validator",
+            Commands::NetworkHealth(_) => "network-health",
+            Commands::LastFinalizedBlock(_) => "last-finalized-block",
+            Commands::ShowMainChain(_) => "show-main-chain",
+            Commands::TransferDeploy(_) => "transfer-deploy",
+            Commands::Transfer(_) => "transfer",
+            Commands::LoadTest(_) => "load-test",
+            Commands::GetDeploy(_) => "get-deploy",
+            Commands::EpochInfo(_) => "epoch-info",
+            Commands::ValidatorStatus(_) => "validator-status",
+            Commands::EpochRewards(_) => "epoch-rewards",
+            Commands::NetworkConsensus(_) => "network-consensus",
+            Commands::GetBlocksByHeight(_) => "get-blocks-by-height",
+            Commands::GetNodeId(_) => "get-node-id",
+            Commands::WatchBlocks(_) => "watch-blocks",
+            Commands::Dag(_) => "dag",
+            Commands::BlockTransfers(_) => "block-transfers",
         }
     }
 }

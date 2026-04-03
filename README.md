@@ -1,6 +1,77 @@
 # F1r3fly Node CLI
 
-A command-line interface for interacting with F1r3fly nodes.
+A Rust crate for interacting with F1r3fly nodes — usable as both a **library** and a **CLI tool**.
+
+## Using as a Library
+
+Add `node_cli` as a dependency with `default-features = false` to avoid pulling in CLI dependencies (`clap`, `ratatui`, `crossterm`):
+
+```toml
+[dependencies]
+node_cli = { git = "https://github.com/F1R3FLY-io/rust-client.git", default-features = false }
+```
+
+### Library Modules
+
+| Module | Description |
+|--------|-------------|
+| `connection_manager` | High-level async API for deploying Rholang code, querying state, and managing node connections |
+| `vault` | Native token transfer and balance operations (`transfer()`, `get_address()`) |
+| `registry` | Cryptographic functions for `rho:registry:insertSigned:secp256k1` |
+| `rholang_helpers` | Parsing Rholang expression responses into plain JSON |
+| `signing` | Deploy data signing (Blake2b-256 + secp256k1 ECDSA) |
+| `http_client` | HTTP-based client for F1r3node API endpoints |
+| `f1r3fly_api` | Low-level gRPC client (deploy, propose, exploratory-deploy, is-finalized) |
+| `utils` | Cryptographic utilities (key derivation, vault address generation) |
+
+### Quick Start
+
+```rust
+use node_cli::connection_manager::{ConnectionConfig, F1r3flyConnectionManager};
+
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    // Configure from environment variables (FIREFLY_HOST, FIREFLY_GRPC_PORT,
+    // FIREFLY_HTTP_PORT, FIREFLY_PRIVATE_KEY)
+    let manager = F1r3flyConnectionManager::from_env()?;
+
+    // Or configure explicitly
+    let config = ConnectionConfig::new(
+        "localhost".to_string(),
+        40401,
+        40403,
+        "your_private_key_hex".to_string(),
+    );
+    let manager = F1r3flyConnectionManager::new(config);
+
+    // Read-only query
+    let result = manager.query(r#"new x in { x!(1 + 1) }"#).await?;
+
+    // Deploy and wait for finalization
+    let (deploy_id, block_hash) = manager
+        .deploy_and_wait(r#"new x in { x!("hello") }"#, 60, 20)
+        .await?;
+
+    // Transfer native tokens (amount in dust; 1 token = 100,000,000 dust)
+    let transfer = manager
+        .transfer("1111recipient_address_here", 100_000_000)
+        .await?;
+
+    Ok(())
+}
+```
+
+### Re-exports
+
+The crate re-exports commonly used types at the root:
+
+```rust
+use node_cli::{ConnectionConfig, ConnectionError, F1r3flyConnectionManager, TransferResult, DUST_FACTOR};
+```
+
+## CLI Usage
+
+The CLI is enabled by default. Build and run with:
 
 ### Prerequisites
 
@@ -14,7 +85,21 @@ A command-line interface for interacting with F1r3fly nodes.
 cargo build
 ```
 
-## Usage
+## Library Usage
+
+This crate can be used as a library (`node_cli`) for programmatic access to F1r3fly nodes. The `ConnectionConfig::from_env()` method reads configuration from environment variables:
+
+| Variable | Required | Default | Description |
+|----------|----------|---------|-------------|
+| `FIREFLY_PRIVATE_KEY` | Yes | — | Private key for signing deploys (64 hex chars) |
+| `FIREFLY_HOST` | No | `localhost` | Node hostname |
+| `FIREFLY_GRPC_PORT` | No | `40401` | gRPC port for deploy/propose |
+| `FIREFLY_HTTP_PORT` | No | `40403` | HTTP port for status/query |
+| `FIREFLY_DEPLOY_TIMEOUT` | No | `180` | Max seconds to wait for deploy inclusion in a block |
+
+See [`.env.example`](.env.example) for a template.
+
+## CLI Usage
 
 The CLI provides the following commands for interacting with F1r3fly nodes:
 
@@ -177,18 +262,25 @@ cargo run -- generate-address --public-key YOUR_PUBLIC_KEY
 
 ### Get Node ID
 
-Extract the F1R3FLY node ID from a TLS private key file. The node ID is a 40-character hexadecimal string derived from the Keccak-256 hash of the TLS public key (removing the '04' prefix).
+Extract the F1R3FLY node ID from a TLS private key file or certificate file. The node ID is a 40-character hexadecimal string derived from the Keccak-256 hash of the TLS public key (removing the '04' prefix).
 
 ```bash
-# Extract node ID from TLS key file (hex format)
+# Extract node ID from TLS private key file (hex format)
 cargo run -- get-node-id --key-file /path/to/node.key.pem
 
+# Extract node ID from TLS certificate file (hex format) - recommended for distribution
+cargo run -- get-node-id --cert-file /path/to/node.certificate.pem
+
 # Extract node ID and generate RNode URL format
-cargo run -- get-node-id --key-file /path/to/node.key.pem --format rnode-url
+cargo run -- get-node-id --cert-file /path/to/node.certificate.pem --format rnode-url
 
 # Generate RNode URL with custom host and ports
-cargo run -- get-node-id --key-file /path/to/node.key.pem --format rnode-url --host mynode.com --protocol-port 40400 --discovery-port 40404
+cargo run -- get-node-id --cert-file /path/to/node.certificate.pem --format rnode-url --host mynode.com --protocol-port 40400 --discovery-port 40404
 ```
+
+**Input options:**
+- `--key-file`: Path to TLS private key file (node.key.pem)
+- `--cert-file`: Path to TLS certificate file (node.certificate.pem) - use this when distributing to clients
 
 **Output formats:**
 - `hex` (default): Returns just the 40-character node ID
@@ -249,7 +341,7 @@ Transfer ASI token as default.
 cargo run -- transfer --to-address 111127RX5ZgiAdRaQy4AWy57RdvAAckdELReEBxzvWYVvdnR32PiHA --amount 100
 
 # Transfer 1000 of custom token from default wallet 
-cargo run -- transfer --to-address 1111La6tHaCtGjRiv4wkffbTAAjGyMsVhzSUNzQxH1jjZH9jtEi3M --amount 1000 --token ETH
+cargo run -- transfer --to-address 1111La6tHaCtGjRiv4wkffbTAAjGyMsVhzSUNzQxH1jjZH9jtEi3M --amount 1000 
 
 # Transfer with custom private key
 cargo run -- transfer --to-address 111127RX5ZgiAdRaQy4AWy57RdvAAckdELReEBxzvWYVvdnR32PiHA --amount 100 --private-key <YOUR_PRIVATE_KEY>
@@ -278,7 +370,7 @@ Transfer tokens between addresses. The command automatically derives the sender 
 
 ```bash
 # Basic Transfer deploy from default wallet 
-cargo run -- transfer-deploy --to-address 111127RX5ZgiAdRaQy4AWy57RdvAAckdELReEBxzvWYVvdnR32PiHA --amount 100 --token ETH
+cargo run -- transfer-deploy --to-address 111127RX5ZgiAdRaQy4AWy57RdvAAckdELReEBxzvWYVvdnR32PiHA --amount 100 
 ```
 
 ## Node Inspection Commands
@@ -315,6 +407,21 @@ cargo run -- blocks --block-hash BLOCK_HASH_HERE
 cargo run -- blocks -H node.example.com --http-port 40413 -n 3
 ```
 
+### Block Transfers
+
+Get transfer information from a specific block. This command extracts and displays all native REV transfers that were executed within a block's deploys.
+
+```bash
+# Get transfers from a specific block
+cargo run -- block-transfers BLOCK_HASH
+
+# Show all deploys (including those without transfers)
+cargo run -- block-transfers BLOCK_HASH --all-deploys
+
+# From a custom node
+cargo run -- block-transfers BLOCK_HASH -H node.example.com -p 40403
+```
+
 ### Bonds
 
 Get current validator bonds from the PoS contract.
@@ -348,7 +455,7 @@ Check wallet balance for a specific address. Checks for ASI token as default.
 cargo run -- wallet-balance --address 1111AtahZeefej4tvVR6ti9TJtv8yxLebT31SCEVDCKMNikBk5r3g
 
 # Check wallet balance for custom token
-cargo run -- wallet-balance --address 1111AtahZeefej4tvVR6ti9TJtv8yxLebT31SCEVDCKMNikBk5r3g --token ETH
+cargo run -- wallet-balance --address 1111AtahZeefej4tvVR6ti9TJtv8yxLebT31SCEVDCKMNikBk5r3g 
 
 # Check balance from custom node (uses gRPC, requires read-only node)
 cargo run -- wallet-balance -a 1111AtahZeefej4tvVR6ti9TJtv8yxLebT31SCEVDCKMNikBk5r3g -H node.example.com --grpc-port 40452
@@ -461,7 +568,7 @@ cargo run -- bond-validator --stake 1000 --private-key YOUR_VALIDATOR_PRIVATE_KE
 
 ### Network Health
 
-Check the health and connectivity of multiple nodes in your F1r3fly shard.
+Check the health and connectivity of multiple nodes in your F1r3fly shard. Supports recursive peer discovery to map network topology and detailed peer information.
 
 **Local Development (Single Host):**
 ```bash
@@ -478,6 +585,27 @@ cargo run -- network-health --custom-ports "60503"
 cargo run -- network-health --standard-ports false --custom-ports "60503,70503"
 ```
 
+**Recursive Peer Discovery:**
+```bash
+# Recursively discover all peers in the network (max 20 unique peers by default)
+cargo run -- network-health -H localhost --recursive
+
+# Discover all peers with no limit
+cargo run -- network-health -H localhost --recursive --max-peers -1
+
+# Discover up to 50 unique peers
+cargo run -- network-health -H localhost --recursive --max-peers 50
+
+# Recursive discovery with verbose output (detailed peer information)
+cargo run -- network-health -H localhost --recursive --verbose
+
+# Show HTTP requests and responses for debugging
+cargo run -- network-health -H localhost --recursive --debug
+
+# Combine all options for comprehensive network analysis
+cargo run -- network-health -H localhost --recursive --max-peers 100 --verbose --debug
+```
+
 **Multi-Host / Remote Networks:**
 ```bash
 # For remote hosts, you MUST specify --custom-ports (no standard port assumptions)
@@ -486,11 +614,27 @@ cargo run -- network-health -H testnet.example.com --custom-ports "8001,8002,944
 # Single remote node
 cargo run -- network-health -H validator.net --custom-ports "7890"
 
+# Recursive discovery on remote network
+cargo run -- network-health -H validator.net --custom-ports "7890" --recursive --max-peers 50
+
 # Different hosts require separate commands
 cargo run -- network-health -H host1.com --custom-ports "8001"
-cargo run -- network-health -H host2.com --custom-ports "8002" 
+cargo run -- network-health -H host2.com --custom-ports "8002"
 cargo run -- network-health -H host3.com --custom-ports "9443"
 ```
+
+**Features:**
+- **Standard Mode**: Queries specified nodes and displays basic health status
+- **Recursive Mode**: Automatically discovers peers from each node and adds them to discovery queue (BFS traversal)
+- **Verbose Output**: Shows detailed peer information including connection status and network statistics
+- **Debug Mode**: Displays HTTP requests and responses for troubleshooting
+
+**Peer Statistics (Recursive Mode):**
+- Total healthy nodes discovered
+- Total peer count
+- Average peers per node
+- Min/max peers (with `--verbose`)
+- Connected peer ratio (with `--verbose`)
 
 **Note:** Remote hosts don't use standard F1r3fly ports (40403, 40413, etc.). You must explicitly specify the actual ports in use with `--custom-ports` to avoid connection failures.
 
@@ -541,6 +685,13 @@ cargo run -- network-consensus
 # Get consensus overview from custom observer node
 cargo run -- network-consensus -H node.example.com --grpc-port 40452 --http-port 40453
 ```
+
+## Testing
+
+See [scripts/README.md](scripts/README.md) for documentation on:
+- **Smoke Tests** - Comprehensive test suite validating 30+ CLI commands
+- **Load Tests** - Performance testing with transfer finalization tracking
+- **Important notes** on consensus issues with repeated test runs
 
 ## Command Line Options
 
@@ -608,11 +759,14 @@ cargo run -- network-consensus -H node.example.com --grpc-port 40452 --http-port
 
 ### Get-Node-ID Command
 
-- `-k, --key-file <KEY_FILE>`: Path to the TLS private key file (node.key.pem) (required)
+- `-k, --key-file <KEY_FILE>`: Path to the TLS private key file (node.key.pem) (mutually exclusive with --cert-file)
+- `-c, --cert-file <CERT_FILE>`: Path to the TLS certificate file (node.certificate.pem) (mutually exclusive with --key-file)
 - `-f, --format <FORMAT>`: Output format: "hex" (default) or "rnode-url"
 - `-H, --host <HOST>`: Node hostname for rnode-url format (default: "localhost")
 - `--protocol-port <PROTOCOL_PORT>`: Protocol port for rnode-url format (default: 40400)
 - `--discovery-port <DISCOVERY_PORT>`: Discovery port for rnode-url format (default: 40404)
+
+**Note:** Either `--key-file` or `--cert-file` must be provided. Use `--cert-file` when distributing to clients to avoid exposing private keys.
 
 ### Status Command
 
@@ -625,6 +779,13 @@ cargo run -- network-consensus -H node.example.com --grpc-port 40452 --http-port
 - `--http-port <PORT>`: HTTP port number (default: 40413)
 - `-n, --number <NUMBER>`: Number of recent blocks to fetch (default: 5)
 - `-b, --block-hash <BLOCK_HASH>`: Specific block hash to fetch (optional)
+
+### Block-Transfers Command
+
+- `-b, --block-hash <BLOCK_HASH>`: Block hash to get transfers from (required)
+- `-H, --host <HOST>`: Host address (default: "localhost")
+- `-p, --port <PORT>`: HTTP port number (default: 40403)
+- `--all-deploys`: Show all deploys, not just those with transfers (default: false)
 
 ### Bonds Command
 
@@ -641,7 +802,6 @@ cargo run -- network-consensus -H node.example.com --grpc-port 40452 --http-port
 - `-H, --host <HOST>`: Host address (default: "localhost")
 - `--grpc-port <PORT>`: gRPC port number (default: 40452, requires read-only node)
 - `-a, --address <ADDRESS>`: Wallet address to check balance for (required)
-- `--token <TOKEN_NAME>`: Token name (like ASI or REV) in specific shard
 
 ### Bond-Status Command
 
@@ -690,6 +850,10 @@ cargo run -- network-consensus -H node.example.com --grpc-port 40452 --http-port
 - `-H, --host <HOST>`: Host address (default: "localhost")
 - `-s, --standard-ports <STANDARD_PORTS>`: Check standard F1r3fly shard ports (default: true)
 - `-c, --custom-ports <CUSTOM_PORTS>`: Additional custom ports to check (comma-separated)
+- `-r, --recursive`: Enable recursive peer discovery to find all peers in the network (default: false)
+- `-n, --max-peers <MAX_PEERS>`: Maximum number of unique peers to discover; -1 or 0 means no limit (default: 20)
+- `-v, --verbose`: Print more details about the results, including peer statistics and min/max values (default: false)
+- `--debug`: Print underlying HTTP requests and responses for troubleshooting (default: false)
 
 ### Transfer Command 
 
@@ -703,7 +867,6 @@ cargo run -- network-consensus -H node.example.com --grpc-port 40452 --http-port
 - `--propose <PROPOSE>`: Also propose a block after transfer (default: false)
 - `--max-wait <MAX_WAIT>`: Maximum total wait time in seconds for deploy finalization (default: 300)
 - `--check-interval <CHECK_INTERVAL>`: Check interval in seconds for deploy status (default: 5)
-- `--token <TOKEN_NAME>`: Token name (like ASI or REV) in specific shard
 
 ### Transfer Deploy
 
@@ -714,4 +877,41 @@ cargo run -- network-consensus -H node.example.com --grpc-port 40452 --http-port
 - `--grpc-port <PORT>`: gRPC port number for deploy (default: 40412)
 - `--http-port <HTTP_PORT>`: HTTP port number for deploy status checks (default: 40413)
 - `-b, --bigger-phlo`: Use bigger phlo limit (default: true, recommended for transfers)
-- `--token <TOKEN_NAME>`: Token name (like ASI or REV) in specific shard
+
+### Epoch-Info Command
+
+- `-H, --host <HOST>`: Host address (default: "localhost")
+- `-p, --grpc-port <PORT>`: gRPC port number (default: 40452 for observer node)
+- `--http-port <HTTP_PORT>`: HTTP port for explore-deploy queries (default: 40453)
+
+### Epoch-Rewards Command
+
+- `-H, --host <HOST>`: Host address (default: "localhost")
+- `-p, --grpc-port <PORT>`: gRPC port number (default: 40452 for observer node)
+- `--http-port <HTTP_PORT>`: HTTP port for explore-deploy queries (default: 40453)
+
+### Validator-Status Command
+
+- `-k, --public-key <PUBLIC_KEY>`: Validator public key to check (hex format, required)
+- `-H, --host <HOST>`: Host address (default: "localhost")
+- `-p, --grpc-port <PORT>`: gRPC port number (default: 40452 for observer node)
+- `--http-port <HTTP_PORT>`: HTTP port for explore-deploy queries (default: 40453)
+
+### Network-Consensus Command
+
+- `-H, --host <HOST>`: Host address (default: "localhost")
+- `-p, --grpc-port <PORT>`: gRPC port number (default: 40452 for observer node)
+- `--http-port <HTTP_PORT>`: HTTP port for explore-deploy queries (default: 40453)
+
+## Feature Flags
+
+| Feature | Default | Description |
+|---------|---------|-------------|
+| `cli` | Yes | Enables CLI binary and dependencies (`clap`, `ratatui`, `crossterm`) |
+
+To build library-only (no CLI dependencies):
+
+```bash
+cargo check --no-default-features
+cargo test --no-default-features --lib
+```

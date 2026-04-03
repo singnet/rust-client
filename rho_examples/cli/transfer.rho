@@ -1,24 +1,24 @@
 new 
-    deployerId(`rho:rchain:deployerId`),
+    deployerId(`rho:system:deployerId`),
     stdout(`rho:io:stdout`),
     rl(`rho:registry:lookup`),
-    asiVaultCh,
+    systemVaultCh,
     vaultCh,
     toVaultCh,
-    asiVaultKeyCh,
+    systemVaultKeyCh,
     resultCh
 in {
-  rl!(`rho:rchain:asiVault`, *asiVaultCh) |
-  for (@(_, ASIVault) <- asiVaultCh) {
-    @ASIVault!("findOrCreate", "{}", *vaultCh) |
-    @ASIVault!("findOrCreate", "{}", *toVaultCh) |
-    @ASIVault!("deployerAuthKey", *deployerId, *asiVaultKeyCh) |
-    for (@(true, vault) <- vaultCh; key <- asiVaultKeyCh; @(true, toVault) <- toVaultCh) {
+  rl!(`rho:vault:system`, *systemVaultCh) |
+  for (@(_, SystemVault) <- systemVaultCh) {
+    @SystemVault!("findOrCreate", "{}", *vaultCh) |
+    @SystemVault!("findOrCreate", "{}", *toVaultCh) |
+    @SystemVault!("deployerAuthKey", *deployerId, *systemVaultKeyCh) |
+    for (@(true, vault) <- vaultCh; key <- systemVaultKeyCh; @(true, toVault) <- toVaultCh) {
       @vault!("transfer", "{}", {}, *key, *resultCh) |
       for (@result <- resultCh) {
         match result {
           (true, Nil) => {
-            stdout!(("Transfer successful:", {}, "ASI"))
+            stdout!(("Transfer successful:", {}, "tokens"))
           }
           (false, reason) => {
             stdout!(("Transfer failed:", reason))

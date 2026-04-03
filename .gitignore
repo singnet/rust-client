@@ -1,5 +1,9 @@
 target/
 reports/
 
-.*
-*.log
+.env
+
+.vscode
+
+# Smoke test logs
+logs/

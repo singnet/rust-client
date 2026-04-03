@@ -1,7 +1,7 @@
-new return, rl(`rho:registry:lookup`), asiVaultCh, vaultCh, balanceCh in {
-            rl!(`rho:rchain:asiVault`, *asiVaultCh) |
-            for (@(_, ASIVault) <- asiVaultCh) {
-                @ASIVault!("findOrCreate", "{}", *vaultCh) |
+new return, rl(`rho:registry:lookup`), systemVaultCh, vaultCh, balanceCh in {
+            rl!(`rho:vault:system`, *systemVaultCh) |
+            for (@(_, SystemVault) <- systemVaultCh) {
+                @SystemVault!("findOrCreate", "{}", *vaultCh) |
                 for (@either <- vaultCh) {
                     match either {
                         (true, vault) => {

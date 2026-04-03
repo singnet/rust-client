@@ -1,5 +1,5 @@
 new return, rl(`rho:registry:lookup`), poSCh in {
-    rl!(`rho:rchain:pos`, *poSCh) |
+    rl!(`rho:system:pos`, *poSCh) |
     for(@(_, PoS) <- poSCh) {
         @PoS!("getQuarantineLength", *return)
     }
