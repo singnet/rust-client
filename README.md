@@ -251,13 +251,13 @@ Generate an address from a public key. You can either provide a public key direc
 
 ```bash
 # Using default private key
-cargo run -- generate-address
+cargo run -- generate-vault-address
 
 # Provide your own private key
-cargo run -- generate-address --private-key YOUR_PRIVATE_KEY
+cargo run -- generate-vault-address --private-key YOUR_PRIVATE_KEY
 
 # Provide a public key directly
-cargo run -- generate-address --public-key YOUR_PUBLIC_KEY
+cargo run -- generate-vault-address --public-key YOUR_PUBLIC_KEY
 ```
 
 ### Get Node ID

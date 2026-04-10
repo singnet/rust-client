@@ -755,7 +755,7 @@ pub async fn get_deploy_command(
     }
 }
 
-fn validate_vault_address(address: &str) -> Result<(), Box<dyn std::error::Error>> {
+pub fn validate_vault_address(address: &str) -> Result<(), Box<dyn std::error::Error>> {
     if !address.starts_with("1111") {
         return Err("Invalid vault address format: must start with '1111'".into());
     }
