@@ -915,3 +915,9 @@ To build library-only (no CLI dependencies):
 cargo check --no-default-features
 cargo test --no-default-features --lib
 ```
+
+---
+
+## License
+
+This project is licensed under the Apache License 2.0. See [LICENSE](LICENSE) file for details.
